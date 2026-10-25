@@ -1,0 +1,21 @@
+#!/bin/bash
+# 올릴 커밋이 모두 PUSH_APP 한 앱 것인지 본다. 다른 창이 커밋만 해 두고 아직 공개하면 안 되는 것을
+# 아무 창이나 push해서 같이 공개하는 일을 막는다(감사 10/25). 쓰는 법: PUSH_APP=스왑백 git push
+dir="$(git rev-parse --show-toplevel)/.githooks"
+if [ -z "$PUSH_APP" ]; then
+  echo "push 막음: 어느 앱을 올리는지 붙여 주세요 — 예) PUSH_APP=스왑백 git push  (공통 파일은 PUSH_APP=공통)" >&2; exit 1
+fi
+while read -r lref lsha rref rsha; do
+  [ "$lsha" = "0000000000000000000000000000000000000000" ] && continue
+  for c in $(git rev-list "$lsha" --not --remotes); do   # 아직 원격에 없는 커밋만
+    for f in $(git diff-tree --no-commit-id --name-only --no-renames -r "$c"); do
+      a="$("$dir/app-of.sh" "$f")"
+      if [ "$a" != "$PUSH_APP" ]; then
+        echo "push 막음: $(git log -1 --format='%h %s' "$c") — '$f'는 ${a:-담당 앱 모름} 파일입니다(PUSH_APP=$PUSH_APP)." >&2
+        echo "다른 앱 커밋이 같이 올라가려 합니다. 그 앱 창이나 사용자에게 먼저 물으세요(.githooks/README.md)." >&2
+        exit 1
+      fi
+    done
+  done
+done
+exit 0

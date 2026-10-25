@@ -1,0 +1,19 @@
+#!/bin/bash
+# 한 번의 커밋에는 한 앱의 파일만. 여러 창이 이 폴더를 같이 쓰니, 남의 미완성 파일이 섞여 공개되지 않게 막는다(2026-10-25).
+# 이 폴더는 push하면 바로 웹에 공개된다 — push는 사용자 승인 후.
+dir="$(git rev-parse --show-toplevel)/.githooks"
+apps=""; unknown=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  a="$("$dir/app-of.sh" "$f")"
+  if [ -z "$a" ]; then unknown="$unknown\n  - $f"; continue; fi
+  case " $apps " in *" $a "*) ;; *) apps="$apps $a" ;; esac
+done < <(git diff --cached --name-only --no-renames)
+if [ -n "$unknown" ]; then
+  printf "커밋 막음: 담당 앱을 모르는 파일이 있습니다.%b\n.githooks/app-of.sh에 이 파일의 앱을 먼저 적으세요.\n" "$unknown" >&2; exit 1
+fi
+n=$(echo $apps | wc -w | tr -d ' ')
+if [ "$n" -gt 1 ]; then
+  printf "커밋 막음: 한 번에 여러 앱 파일이 들어 있습니다(%s).\n자기 앱 파일만 'git add 파일이름'으로 골라 넣으세요. 'git add -A'·'git add .' 금지.\n" "$(echo $apps)" >&2; exit 1
+fi
+exit 0
